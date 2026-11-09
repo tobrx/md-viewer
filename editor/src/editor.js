@@ -119,7 +119,7 @@ const theme = EditorView.theme({
   '.cm-tooltip-autocomplete ul li[aria-selected]': {background: 'var(--acc)', color: 'var(--bg)'},
   '.cm-completionDetail': {opacity: '.65', marginLeft: '1em', fontStyle: 'normal'},
   '.cm-img': {maxWidth: '100%', borderRadius: '6px', verticalAlign: 'middle'},
-  '.cm-quoteline': {borderLeft: '3px solid var(--quote)', paddingLeft: '1em'},
+  '.cm-quoteline': {background: 'var(--bg2)', paddingLeft: '1em', color: 'var(--mute)'},
 })
 
 const wrap = m => ({state, dispatch}) => {

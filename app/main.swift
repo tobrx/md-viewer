@@ -342,10 +342,12 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
             item("In den Papierkorb legen …") { chosen = "trash" }
         } else {
             menu.addItem(.separator())
-            if kind == "folder" { item("Als Ort merken") { chosen = "addPlace" } }
-            else {
-                if kind == "notes" { item("Notizordner ändern …") { chosen = "changeNotes" } }
-                item(kind == "notes" ? "Notizordner nicht mehr verwenden" : "Aus Orte entfernen") { chosen = kind == "notes" ? "removeNotes" : "removePlace" }
+            if kind == "folder" {
+                item("Als Ort merken") { chosen = "addPlace" }
+                item("Als Ort für neue Notizen merken") { chosen = "addPlaceNotes" }
+            } else {
+                item(pinned ? "Nicht mehr für neue Notizen verwenden" : "Für neue Notizen verwenden") { chosen = pinned ? "unsetNotes" : "setNotes" }
+                item("Aus Orte entfernen") { chosen = "removePlace" }
             }
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)

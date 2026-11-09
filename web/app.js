@@ -22,7 +22,7 @@ let outline = [], kb = -1, themeMode = 'system', booted = false;
 let editing = false, dirty = false, conflict = false, ed = null, saveTimer = null, statText = '';
 
 const curPath = () => tabs[active]?.path || null;
-const searchDirs = () => [S.notes, ...S.orte].filter(Boolean);
+const searchDirs = () => [...S.orte];
 const isPinned = p => S.pins.some(x => x.path === p);
 function allFiles() {
   const m = new Map();
@@ -45,6 +45,7 @@ async function boot(ext) {
     try { Object.assign(S, JSON.parse(await N('getState'))); } catch {}
     document.body.classList.toggle('noside', !!S.noside);
     S.recent ??= []; S.pins ??= []; S.orte ??= []; S.collapsed ??= {};
+    if (S.notes && !S.orte.includes(S.notes)) S.orte.unshift(S.notes);   // früherer Notizordner ist jetzt ein Ort
     await loadLists();
     for (const t of (S.tabs || [])) {
       if (t.path && await N('stat', {path: t.path}) != null) tabs.push({path: t.path, hist: [t.path], hpos: 0, scroll: 0});
@@ -85,7 +86,6 @@ async function setFileDir(path) {
 }
 
 async function addPlace(dir) {
-  if (S.notes === dir) { tab = 'files'; renderSide(); return; }
   if (!S.orte.includes(dir)) S.orte.push(dir);
   S.collapsed['o:' + dir] = false;
   await loadList(dir); tab = 'files'; filter = ''; $('#q').value = '';
@@ -163,21 +163,23 @@ async function showActive(heading, o = {}) {
 
 function renderTabs() {
   const bar = $('#tabbar'); bar.innerHTML = '';
-  const sb = document.createElement('button'); sb.className = 'tool sbtn'; sb.title = 'Seitenleiste ein/aus (⌥⌘B)'; sb.innerHTML = ICONS.sidebar; sb.onclick = toggleSide; bar.append(sb);
+  const sb = document.createElement('button'); sb.className = 'tool sbtn'; sb.title = 'Seitenleiste ein/aus (⌥⌘B)'; sb.setAttribute('aria-label', 'Seitenleiste ein oder aus'); sb.innerHTML = ICONS.sidebar; sb.querySelector('svg').setAttribute('aria-hidden', 'true'); sb.onclick = toggleSide; bar.append(sb);
   tabs.forEach((t, i) => {
     const el = document.createElement('div');
     el.className = 'ttab' + (i === active ? ' on' : ''); el.title = tilde(t.path);
-    el.innerHTML = `<span>${esc(stem(t.path))}</span><b>×</b>`;
+    el.innerHTML = `<span>${esc(stem(t.path))}</span><button class="x" aria-label="Tab schließen" title="Tab schließen">×</button>`;
+    el.tabIndex = 0; el.setAttribute('role', 'button');
+    el.onkeydown = e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); el.click(); } };
     el.onclick = () => i === active || switchTab(i);
     el.onauxclick = e => { if (e.button === 1) closeTab(i); };
     el.oncontextmenu = e => { e.preventDefault(); N('ctx', {path: t.path, kind: 'file', pinned: isPinned(t.path)}).then(r => handleCtx(r, t.path)); };
-    el.querySelector('b').onclick = e => { e.stopPropagation(); closeTab(i); };
+    el.querySelector('.x').onclick = e => { e.stopPropagation(); closeTab(i); };
     bar.append(el);
   });
-  const p = document.createElement('div'); p.className = 'tplus'; p.textContent = '+'; p.title = 'Datei oder Ordner öffnen (⌘O)'; p.onclick = openDialog; bar.append(p);
+  const p = document.createElement('button'); p.className = 'tplus'; p.setAttribute('aria-label', 'Datei oder Ordner öffnen'); p.textContent = '+'; p.title = 'Datei oder Ordner öffnen (⌘O)'; p.onclick = openDialog; bar.append(p);
   const sp = document.createElement('div'); sp.className = 'tspace'; bar.append(sp);
   const st = document.createElement('span'); st.className = 'tstat'; st.id = 'stat'; st.textContent = statText; bar.append(st);
-  const tool = (svg, title, fn) => { const b = document.createElement('button'); b.className = 'tool'; b.title = title; b.innerHTML = svg; b.onclick = fn; bar.append(b); };
+  const tool = (svg, title, fn) => { const b = document.createElement('button'); b.className = 'tool'; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = svg; b.querySelector('svg')?.setAttribute('aria-hidden', 'true'); b.onclick = fn; bar.append(b); };
   if (cur) tool(ICONS.focus, 'Fokusmodus (⇧⌘F)', toggleFocus);
   if (cur) tool(isPinned(cur.path) ? ICONS.pinned : ICONS.pin, isPinned(cur.path) ? 'Aus Merkliste entfernen (⇧⌘D)' : 'Zur Merkliste (⇧⌘D)', togglePinCurrent);
   if (cur) tool(editing ? ICONS.read : ICONS.edit, editing ? 'Lesen (⌘E)' : 'Bearbeiten (⌘E)', toggleEdit);
@@ -254,15 +256,17 @@ function askName(title, value) {
 }
 
 // ---------- Notizen ----------
-async function newNote() {
+async function newNote(dir) {
   if (!await leaveIfEditing()) return;
-  if (!S.notes) {
+  let target = typeof dir === 'string' ? dir : S.notes;
+  if (!target) {
     const d = await N('chooseFolder', {title: 'Ordner für neue Notizen wählen'}); if (!d) return;
-    S.orte = S.orte.filter(x => x !== d); S.notes = d; await loadList(d); save();
+    if (!S.orte.includes(d)) S.orte.push(d);
+    S.notes = d; target = d; await loadList(d); save();
   }
   let p;
-  try { p = await N('newNote', {dir: S.notes}); } catch { stat('Anlegen fehlgeschlagen'); return; }
-  await loadList(S.notes);
+  try { p = await N('newNote', {dir: target}); } catch { stat('Anlegen fehlgeschlagen'); return; }
+  await loadList(target);
   await openFile(p);
   await enterEdit(); ed.view.dispatch({selection: {anchor: 2}}); ed.focus();
 }
@@ -271,7 +275,7 @@ async function autoName() {
   if (!p || !ed || !/^Unbenannt( \d+)?\.md$/.test(base(p))) return;
   const m = ed.getValue().match(/^#\s+(.+)$/m); if (!m) return;
   const title = m[1].trim().replace(/[\/:\\]/g, '-').slice(0, 80); if (!title) return;
-  try { const np = await N('rename', {path: p, name: title + '.md'}); renamePath(p, np); await loadList(S.notes); } catch {}
+  try { const np = await N('rename', {path: p, name: title + '.md'}); renamePath(p, np); const d = searchDirs().find(x => p.startsWith(x + '/')) || fileDir; if (d) await loadList(d, d === fileDir ? 2 : undefined); } catch {}
 }
 
 // ---------- Seitenleiste ----------
@@ -284,9 +288,11 @@ function renderSide() {
   if (document.activeElement === el && kb >= 0) kbSet(kb);
 }
 
-function fileRow(f, sub) {
+function fileRow(f, sub, quick) {
   const row = document.createElement('div');
-  row.className = 'row' + (curPath() === f.path ? ' active' : '');
+  row.className = 'row' + (quick ? ' quick' : '') + (curPath() === f.path ? ' active' : '');
+  row.tabIndex = 0; row.setAttribute('role', 'button');
+  row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); } };
   row.innerHTML = esc(stem(f.path)) + (sub ? `<small>${esc(sub)}</small>` : '');
   row.title = tilde(f.path);
   row.onclick = () => openFile(f.path);
@@ -297,22 +303,23 @@ function fileRow(f, sub) {
 function section(el, key, title, o = {}) {
   const collapsed = !!S.collapsed[key];
   const h = document.createElement('div'); h.className = 'sech';
-  h.innerHTML = `<span>${collapsed ? '▸' : '▾'} ${esc(title)}</span>`;
+  h.innerHTML = `<span>${collapsed ? '▸' : '▾'} ${esc(title)}${o.badge ? `<small class="badge">${esc(o.badge)}</small>` : ''}</span>`;
+  h.title = collapsed ? 'Ausklappen' : 'Einklappen (Ziehen zum Verschieben)';
+  h.tabIndex = 0; h.setAttribute('role', 'button'); h.setAttribute('aria-expanded', String(!collapsed));
+  h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); } };
   h.onclick = () => { S.collapsed[key] = !collapsed; renderSide(); save(); };
-  if (o.action) { const b = document.createElement('button'); b.className = 'secb'; b.title = o.action.title; b.innerHTML = ICONS.plus; b.onclick = e => { e.stopPropagation(); o.action.fn(); }; h.append(b); }
-  if (o.ctx) h.oncontextmenu = e => { e.preventDefault(); N('ctx', {path: o.ctx.path, kind: o.ctx.kind}).then(r => handleSectionCtx(r, o.ctx.path)); };
+  if (o.action) { const b = document.createElement('button'); b.className = 'secb'; b.title = o.action.title; b.setAttribute('aria-label', o.action.title); b.innerHTML = ICONS.plus; b.querySelector('svg').setAttribute('aria-hidden', 'true'); b.onclick = e => { e.stopPropagation(); o.action.fn(); }; h.append(b); }
+  if (o.ctx) h.oncontextmenu = e => { e.preventDefault(); N('ctx', {path: o.ctx.path, kind: o.ctx.kind, pinned: !!o.ctx.flag}).then(r => handleSectionCtx(r, o.ctx.path)); };
   el.append(h);
   const body = document.createElement('div'); body.className = 'secbody'; body.hidden = collapsed; el.append(body);
   return body;
 }
 async function handleSectionCtx(res, path) {
   if (res === 'addPlace') await addPlace(path);
-  else if (res === 'removePlace') { S.orte = S.orte.filter(x => x !== path); delete lists[path]; renderSide(); save(); }
-  else if (res === 'removeNotes') { S.notes = null; delete lists[path]; renderSide(); save(); }
-  else if (res === 'changeNotes') {
-    const d = await N('chooseFolder', {title: 'Neuen Notizordner wählen'}); if (!d) return;
-    S.orte = S.orte.filter(x => x !== d); S.notes = d; await loadList(d); renderSide(); save();
-  }
+  else if (res === 'addPlaceNotes') { await addPlace(path); S.notes = path; renderSide(); save(); }
+  else if (res === 'setNotes') { S.notes = path; renderSide(); save(); }
+  else if (res === 'unsetNotes') { S.notes = null; renderSide(); save(); }
+  else if (res === 'removePlace') { S.orte = S.orte.filter(x => x !== path); if (S.notes === path) S.notes = null; delete lists[path]; renderSide(); save(); }
 }
 
 function renderFiles(el) {
@@ -323,30 +330,28 @@ function renderFiles(el) {
     renderTreeFor(fileDir, b);
   }});
   const recent = S.recent.filter(r => !isPinned(r.path)).slice(0, 12);
-  if (recent.length) blocks.push({key: 'recent', render: w => { const b = section(w, 'recent', 'Zuletzt'); recent.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path))))); }});
-  if (S.pins.length) blocks.push({key: 'pins', render: w => { const b = section(w, 'pins', 'Merkliste'); S.pins.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path))))); }});
-  blocks.push({key: 'notes', render: w => {
-    const nb = section(w, 'notes', 'Notizen', {action: {title: 'Neue Notiz (⌘N)', fn: newNote}, ctx: S.notes ? {path: S.notes, kind: 'notes'} : null});
-    if (S.notes) renderTreeFor(S.notes, nb);
-    else { const r = document.createElement('div'); r.className = 'none'; r.innerHTML = 'Noch kein Notizordner. <a class="lnk">Neue Notiz</a> fragt danach.'; r.querySelector('a').onclick = newNote; nb.append(r); }
+  if (recent.length) blocks.push({key: 'recent', cls: 'quick', render: w => { const b = section(w, 'recent', 'Zuletzt', {badge: S.collapsed.recent ? String(recent.length) : ''}); recent.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path)), true))); }});
+  if (S.pins.length) blocks.push({key: 'pins', cls: 'quick', render: w => { const b = section(w, 'pins', 'Merkliste', {badge: S.collapsed.pins ? String(S.pins.length) : ''}); S.pins.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path)), true))); }});
+  for (const d of S.orte) blocks.push({key: 'o:' + d, render: w => {
+    const b = section(w, 'o:' + d, base(d), {badge: d === S.notes ? 'Neue Notizen' : '', action: {title: 'Neue Notiz in diesem Ordner', fn: () => newNote(d)}, ctx: {path: d, kind: 'place', flag: d === S.notes}});
+    renderTreeFor(d, b);
   }});
-  for (const d of S.orte) blocks.push({key: 'o:' + d, render: w => { const b = section(w, 'o:' + d, base(d), {ctx: {path: d, kind: 'place'}}); renderTreeFor(d, b); }});
   const order = S.order || [];
   blocks.map((b, i) => [b, i]).sort((x, y) => {
     const ix = order.indexOf(x[0].key), iy = order.indexOf(y[0].key);
     return (ix < 0 ? 1000 + x[1] : ix) - (iy < 0 ? 1000 + y[1] : iy);
   }).forEach(([blk]) => {
-    const w = document.createElement('div'); w.className = 'secwrap'; w.dataset.key = blk.key;
+    const w = document.createElement('div'); w.className = 'secwrap' + (blk.cls ? ' ' + blk.cls : ''); w.dataset.key = blk.key;
     blk.render(w); el.append(w); makeDraggable(w);
   });
-  if (!S.orte.length && !recent.length && !S.pins.length && !S.notes) el.insertAdjacentHTML('beforeend', '<div class="none">Öffne eine Datei oder einen Ordner mit ⌘O.</div>');
+  if (!S.orte.length && !recent.length && !S.pins.length) el.insertAdjacentHTML('beforeend', '<div class="none">Öffne eine Datei oder einen Ordner mit ⌘O.</div>');
 }
 
 // Bereiche per Ziehen an der Überschrift umsortieren
 let dragKey = null;
 function makeDraggable(w) {
   const h = w.querySelector('.sech'); if (!h) return;
-  h.draggable = true; h.title = h.title || 'Ziehen zum Verschieben';
+  h.draggable = true;
   h.addEventListener('dragstart', e => {
     dragKey = w.dataset.key; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragKey);
     setTimeout(() => w.classList.add('dragging'), 0);
@@ -777,7 +782,7 @@ function toggleSide() { document.body.classList.toggle('noside'); S.noside = doc
 function toggleFocus() { document.body.classList.toggle('focus'); }
 function setTab(t) { tab = t; filter = ''; $('#q').value = ''; document.body.classList.remove('noside'); renderSide(); }
 function focusSearch() { document.body.classList.remove('noside'); $('#q').focus(); $('#q').select(); }
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => setTab(t.dataset.t));
+document.querySelectorAll('.tab').forEach(t => { t.tabIndex = 0; t.setAttribute('role', 'button'); t.onclick = () => setTab(t.dataset.t); t.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t.click(); } }; });
 $('#focusx').onclick = toggleFocus;
 let qTimer = null;
 $('#q').oninput = e => {

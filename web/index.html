@@ -3,18 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Markdown-Dateien von überall lesen und bearbeiten.">
 <title>MD Viewer</title>
 <style>
 :root{
-  --bg:#ffffff; --bg2:#f3f3f3; --bd:#e2e2e2; --tx:#222; --mute:#858585;
+  --bg:#ffffff; --bg2:#f3f3f3; --bd:#e2e2e2; --tx:#222; --mute:#6b6b6b;
   --acc:#7c5cd6; --code:#f1f1f3; --quote:#d0d0d0; --hover:#e8e8ea;
   --hit:#ffe96688; --hitcur:#ffb02ecc; --scrim:#0000004d;
+  --on-acc:#ffffff; --sel:#7c5cd629; --note:#5b8def;
   --hl-k:#8250df; --hl-s:#0a7f4f; --hl-c:#8a8a8a; --hl-n:#b35900; --hl-t:#0b6bcb; --hl-d:#cf3b34;
 }
 @media (prefers-color-scheme:dark){
-  :root{ --bg:#1e1e1e; --bg2:#252526; --bd:#333; --tx:#d4d4d4; --mute:#8a8a8a;
+  :root{ --bg:#1e1e1e; --bg2:#252526; --bd:#333; --tx:#d4d4d4; --mute:#a0a0a0;
     --acc:#a78bfa; --code:#2b2b2e; --quote:#4a4a4a; --hover:#2a2d2e;
     --hit:#ffe96655; --hitcur:#d98a00cc; --scrim:#00000080;
+    --on-acc:#1b1530; --sel:#a78bfa33;
     --hl-k:#c4a7ff; --hl-s:#7ee0a8; --hl-c:#7d7d7d; --hl-n:#f0a860; --hl-t:#7cc0ff; --hl-d:#ff8a84; }
 }
 *{box-sizing:border-box}
@@ -32,11 +35,12 @@ body.noside #side{display:none}
 #q{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:5px 8px;font:inherit;font-size:13px;outline:none}
 #q:focus{border-color:var(--acc)}
 #tree{overflow:auto;padding:2px 6px 20px;flex:1;font-size:13.5px}
-.row{padding:3px 8px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row{padding:4px 8px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row:hover{background:var(--hover)}
-.row.active{background:var(--acc);color:#fff}
+.row.active{background:var(--sel);color:var(--tx);font-weight:600}
+.row.quick.active{background:none;color:var(--acc)}
 .row small{display:block;color:var(--mute);font-size:11px;line-height:1.2;margin-top:-1px}
-.row.active small{color:#ffffffbb}
+.row.active small{color:var(--mute);font-weight:400}
 .dir{color:var(--tx)}
 .kids{margin-left:10px;border-left:1px solid var(--bd);padding-left:2px}
 .sect{font-size:11px;color:var(--mute);padding:12px 8px 4px}
@@ -53,13 +57,13 @@ body.noside #side{display:none}
 .ttab span{overflow:hidden;text-overflow:ellipsis}
 .ttab:hover{background:var(--hover)}
 .ttab.on{background:var(--bg);color:var(--tx);box-shadow:inset 0 2px 0 var(--acc)}
-.ttab b{font-weight:400;font-size:15px;line-height:1;border-radius:4px;padding:1px 4px;opacity:.6}
-.ttab b:hover{background:var(--bd);opacity:1}
-.tplus{padding:7px 14px;color:var(--mute);cursor:pointer;font-size:15px}
+.ttab .x{font-weight:400;font-size:15px;line-height:1;border:0;background:none;color:inherit;border-radius:4px;padding:4px 6px;margin-right:-4px;opacity:.6;cursor:pointer}
+.ttab .x:hover{background:var(--bd);opacity:1}
+.tplus{background:none;border:0;border-radius:0;padding:7px 14px;color:var(--mute);cursor:pointer;font-size:15px}
 .tplus:hover{color:var(--tx)}
 #doc{max-width:760px;margin:0 auto;padding:40px 32px 120px}
 #welcome{text-align:center;margin-top:22vh;color:var(--mute)}
-#welcome button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:9px 18px;font:inherit;font-size:14px;cursor:pointer;margin:14px 0 24px}
+#welcome button{background:var(--acc);color:var(--on-acc);border:0;border-radius:8px;padding:9px 18px;font:inherit;font-size:14px;cursor:pointer;margin:14px 0 24px}
 #welcome .rf{display:block;color:var(--tx);cursor:pointer;padding:4px;font-size:14px} #welcome .rf:hover{color:var(--acc)}
 #doc h1,#doc h2,#doc h3,#doc h4{line-height:1.3;margin:1.6em 0 .5em}
 #doc h1{font-size:2em;margin-top:0} #doc h2{font-size:1.5em;border-bottom:1px solid var(--bd);padding-bottom:.2em}
@@ -68,17 +72,17 @@ body.noside #side{display:none}
 #doc code{background:var(--code);padding:.15em .35em;border-radius:4px;font:.88em ui-monospace,Menlo,monospace}
 #doc pre{background:var(--code);padding:14px;border-radius:8px;overflow:auto}
 #doc pre code{background:none;padding:0}
-#doc blockquote{margin:1em 0;padding:.1em 1em;border-left:3px solid var(--quote);color:var(--mute)}
+#doc blockquote{margin:1em 0;padding:.3em 1em;background:var(--bg2);border-radius:6px;color:var(--tx)}
 #doc img{max-width:100%;border-radius:6px}
 #doc table{border-collapse:collapse;margin:1em 0} #doc th,#doc td{border:1px solid var(--bd);padding:6px 12px} #doc th{background:var(--bg2)}
 #doc hr{border:0;border-top:1px solid var(--bd);margin:2em 0}
 #doc li.task{list-style:none;margin-left:-1.3em} #doc li.task input{margin-right:.5em}
 #doc .tag{color:var(--acc);background:color-mix(in srgb,var(--acc) 15%,transparent);padding:.05em .45em;border-radius:99px;font-size:.88em}
-#doc mark{background:#ffe96655;color:inherit;padding:0 .15em;border-radius:3px}
+#doc mark{background:var(--hit);color:inherit;padding:0 .15em;border-radius:3px}
 .props{border:1px solid var(--bd);border-radius:8px;padding:8px 14px;margin-bottom:1.8em;font-size:.88em;background:var(--bg2)}
 .props div{display:flex;gap:12px;padding:2px 0} .props b{min-width:90px;color:var(--mute);font-weight:500}
-.callout{border-left:4px solid var(--c,#5b8def);background:color-mix(in srgb,var(--c,#5b8def) 12%,transparent);border-radius:6px;padding:.6em 1em;margin:1em 0}
-.callout .ct{font-weight:600;color:var(--c,#5b8def);text-transform:capitalize}
+.callout{border-left:4px solid var(--c,var(--note));background:color-mix(in srgb,var(--c,var(--note)) 12%,transparent);border-radius:6px;padding:.6em 1em;margin:1em 0}
+.callout .ct{font-weight:600;color:var(--c,var(--note));text-transform:capitalize}
 .callout p{margin:.3em 0}
 #tree:focus{outline:none}
 .row.kb,.otl.kb{box-shadow:inset 0 0 0 1.5px var(--acc)}
@@ -97,12 +101,12 @@ body.noside #side{display:none}
 #doc mark.hit.cur{background:var(--hitcur)}
 #pal{display:none;position:fixed;inset:0;z-index:20;background:var(--scrim);align-items:flex-start;justify-content:center;padding-top:12vh}
 #pal.on{display:flex}
-#palbox{width:min(600px,92vw);background:var(--bg);border:1px solid var(--bd);border-radius:10px;overflow:hidden;box-shadow:0 12px 40px var(--scrim)}
+#palbox{width:min(600px,92vw);background:var(--bg);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
 #pq{width:100%;border:0;border-bottom:1px solid var(--bd);background:transparent;color:var(--tx);font:inherit;font-size:16px;padding:12px 14px;outline:none}
 #pres{max-height:50vh;overflow:auto;padding:4px}
 .prow{padding:6px 10px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;justify-content:space-between;gap:12px}
 .prow small{color:var(--mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:55%}
-.prow.sel{background:var(--acc);color:var(--bg)}
+.prow.sel{background:var(--acc);color:var(--on-acc)}
 .prow.sel small{color:inherit;opacity:.8}
 .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-meta{color:var(--hl-k)}
 .hljs-string,.hljs-regexp,.hljs-addition,.hljs-symbol{color:var(--hl-s)}
@@ -125,15 +129,17 @@ body.noside #side{display:none}
 #warn span{flex:1}
 #dlg{display:none;position:fixed;inset:0;z-index:30;background:var(--scrim);align-items:flex-start;justify-content:center;padding-top:20vh}
 #dlg.on{display:flex}
-#dlgbox{width:min(420px,92vw);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:14px;box-shadow:0 12px 40px var(--scrim)}
+#dlgbox{width:min(420px,92vw);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:14px}
 #dlgt{font-size:13px;color:var(--mute);margin-bottom:8px}
 #dlgi{width:100%;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;font:inherit;font-size:15px;outline:none}
 #dlgi:focus{border-color:var(--acc)}
 #welcome h2{color:var(--tx);margin:0 0 .4em}
 .wbtns{display:flex;gap:10px;justify-content:center;margin:18px 0 10px}
 #welcome button.alt{background:var(--bg2);color:var(--tx);border:1px solid var(--bd)}
-.wrec{margin-top:26px;text-align:left;display:inline-block;min-width:320px}
-.wrec .rf{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-radius:6px}
+.wrec{margin:26px auto 0;text-align:left;display:block;max-width:420px}
+#welcome>small{display:block}
+#welcome h2{border:0;padding:0}
+#welcome .wrec .rf{display:flex;justify-content:space-between;gap:16px;padding:5px 8px;border-radius:6px}
 .wrec .rf:hover{background:var(--hover)}
 .wrec .rf small{color:var(--mute)}
 .backlinks{margin-top:3.5em;border-top:1px solid var(--bd);padding-top:1em}
@@ -159,6 +165,18 @@ body.focus #focusx{display:flex}
 .secwrap.drop-above{box-shadow:inset 0 2px 0 var(--acc)}
 .secwrap.drop-below{box-shadow:inset 0 -2px 0 var(--acc)}
 .sech[draggable=true]{cursor:grab}
+.sech .badge{font-weight:400;font-size:11px;margin-left:8px;color:var(--mute)}
+.secwrap.quick{background:var(--hover);border-radius:8px;margin:6px 0 10px;padding:0 0 4px}
+.secwrap.quick .row:hover{background:var(--bd)}
+.secwrap.quick .sech{padding-top:6px}
+.sech span{display:flex;align-items:baseline}
+html,body{overflow-x:clip}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sech:focus-visible,.ttab:focus-visible,.tab:focus-visible,.row:focus-visible{outline-offset:-2px}
+button:active,.tool:active,.secb:active{opacity:.7}
+.row:active,.ttab:active,.tab:active,.prow:active{background:var(--bd)}
+button:disabled{opacity:.5;cursor:not-allowed;background:var(--bg2);color:var(--mute)}
+#doc h1,#doc h2,#doc h3,#doc h4{text-wrap:balance}
 </style>
 </head>
 <body>
@@ -175,8 +193,8 @@ body.focus #focusx{display:flex}
   <div id="find"><input id="fq" placeholder="Im Dokument suchen" autocomplete="off" spellcheck="false"><span id="fc"></span><button id="fp" title="Vorheriger (⇧⌘G)">↑</button><button id="fn" title="Nächster (⌘G)">↓</button><button id="fx" title="Schließen (Esc)">×</button></div>
   <main id="main"><div id="doc"></div></main>
 </div>
-<button id="focusx" title="Fokusmodus beenden (Esc)"><svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
-<div id="lb"><img id="lbimg" alt=""></div>
+<button id="focusx" title="Fokusmodus beenden (Esc)" aria-label="Fokusmodus beenden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
+<div id="lb"><img id="lbimg" alt="Bildvorschau"></div>
 <script src="vendor/marked.min.js"></script>
 <script src="vendor/purify.min.js"></script>
 <script src="vendor/highlight.min.js"></script>
