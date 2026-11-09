@@ -130,17 +130,21 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
             let p = NSOpenPanel()
             p.canChooseFiles = true; p.canChooseDirectories = true; p.allowsMultipleSelection = true
             p.prompt = "Öffnen"; p.message = "Markdown-Dateien oder Ordner wählen"
-            var types: [UTType] = [.folder]
-            for e in ["md", "markdown"] { if let t = UTType(filenameExtension: e) { types.append(t) } }
-            p.allowedContentTypes = types
-            if p.runModal() == .OK {
-                replyHandler(p.urls.map { ["path": $0.resolvingSymlinksInPath().path, "dir": isDirectory($0)] }, nil)
-            } else { replyHandler([], nil) }
+            // Kein Typfilter: der ließ .md-Dateien je nach Dateityp-Registrierung ausgegraut. Gefiltert wird danach.
+            let done: (NSApplication.ModalResponse) -> Void = { r in
+                guard r == .OK else { replyHandler([], nil); return }
+                let urls = p.urls.filter { isDirectory($0) || isMD($0) }
+                replyHandler(urls.map { ["path": $0.resolvingSymlinksInPath().path, "dir": isDirectory($0)] }, nil)
+            }
+            if let w = NSApp.keyWindow ?? NSApp.mainWindow { p.beginSheetModal(for: w, completionHandler: done) } else { p.begin(completionHandler: done) }
         case "chooseFolder":
             let p = NSOpenPanel()
             p.canChooseFiles = false; p.canChooseDirectories = true; p.canCreateDirectories = true
             p.prompt = "Wählen"; p.message = b["title"] as? String ?? "Ordner wählen"
-            if p.runModal() == .OK, let u = p.url { replyHandler(u.resolvingSymlinksInPath().path, nil) } else { replyHandler(nil, nil) }
+            let done: (NSApplication.ModalResponse) -> Void = { r in
+                if r == .OK, let u = p.url { replyHandler(u.resolvingSymlinksInPath().path, nil) } else { replyHandler(nil, nil) }
+            }
+            if let w = NSApp.keyWindow ?? NSApp.mainWindow { p.beginSheetModal(for: w, completionHandler: done) } else { p.begin(completionHandler: done) }
 
         case "list":
             guard let dir = b["dir"] as? String else { replyHandler([], nil); return }

@@ -184,7 +184,8 @@ function renderTabs() {
   if (cur) tool(isPinned(cur.path) ? ICONS.pinned : ICONS.pin, isPinned(cur.path) ? 'Aus Merkliste entfernen (⇧⌘D)' : 'Zur Merkliste (⇧⌘D)', togglePinCurrent);
   if (cur) tool(editing ? ICONS.read : ICONS.edit, editing ? 'Lesen (⌘E)' : 'Bearbeiten (⌘E)', toggleEdit);
   tool(ICONS.search, 'Im Dokument suchen (⌘F)', () => cur ? findOpen() : palette());
-  tool(ICONS[themeMode], `Darstellung: ${{system: 'System', light: 'Hell', dark: 'Dunkel'}[themeMode]} (Klick zum Wechseln)`, cycleTheme);
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  tool(ICONS[isDark ? 'dark' : 'light'], `Darstellung: ${isDark ? 'Dunkel' : 'Hell'}${themeMode === 'system' ? ' (System)' : ''}, Klick wechselt zu ${isDark ? 'Hell' : 'Dunkel'}`, cycleTheme);
 }
 const ICONS = {
   sidebar: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg>',
@@ -199,7 +200,12 @@ const ICONS = {
   dark: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>',
   system: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16"/><path d="M12 4a8 8 0 010 16z" fill="currentColor"/></svg>',
 };
-async function cycleTheme() { themeMode = await N('theme', {mode: {system: 'light', light: 'dark', dark: 'system'}[themeMode]}); renderTabs(); }
+// Ein Klick wechselt immer sichtbar zwischen Hell und Dunkel; "System" bleibt im Menü Ansicht.
+async function cycleTheme() {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  themeMode = await N('theme', {mode: dark ? 'light' : 'dark'}); renderTabs();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderTabs());
 async function syncTheme() { themeMode = await N('theme'); renderTabs(); }
 
 function welcome() {
