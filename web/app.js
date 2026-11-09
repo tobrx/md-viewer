@@ -44,7 +44,7 @@ async function boot(ext) {
     syncTheme();
     try { Object.assign(S, JSON.parse(await N('getState'))); } catch {}
     document.body.classList.toggle('noside', !!S.noside);
-    S.recent ??= []; S.pins ??= []; S.orte ??= []; S.collapsed ??= {};
+    S.recent ??= []; S.pins ??= []; S.orte ??= []; S.flat ??= {}; S.collapsed ??= {};
     if (S.notes && !S.orte.includes(S.notes)) S.orte.unshift(S.notes);   // früherer Notizordner ist jetzt ein Ort
     await loadLists();
     for (const t of (S.tabs || [])) {
@@ -73,20 +73,20 @@ async function openDialog() {
   if (items?.length) await handlePaths(items);
 }
 
-async function loadList(dir, depth) { try { lists[dir] = await N('list', {dir, depth}); } catch { lists[dir] = []; } }
+async function loadList(dir, depth) { depth ??= S.flat?.[dir] ? 1 : undefined; try { lists[dir] = await N('list', {dir, depth}); } catch { lists[dir] = []; } }
 const covered = d => searchDirs().some(s => d === s || d.startsWith(s + '/'));
 async function loadLists() {
   await Promise.all([...searchDirs().map(d => loadList(d)), ...(fileDir ? [loadList(fileDir, 2)] : [])]);
 }
-async function setFileDir(path) {
-  const d = dirOf(path);
-  fileDir = d && !covered(d) ? d : null;
-  for (const k of Object.keys(lists)) if (k !== fileDir && !searchDirs().includes(k)) delete lists[k];
-  if (fileDir) await loadList(fileDir, 2);
+// Eine geöffnete Datei bringt ihren Ordner nicht mit. Ordner kommen nur als Ort dazu (Ordner ziehen, ⌘O oder Rechtsklick auf die Datei).
+async function setFileDir() {
+  fileDir = null;
+  for (const k of Object.keys(lists)) if (!searchDirs().includes(k)) delete lists[k];
 }
 
-async function addPlace(dir) {
+async function addPlace(dir, flat) {
   if (!S.orte.includes(dir)) S.orte.push(dir);
+  if (flat !== undefined) { if (flat) S.flat[dir] = true; else delete S.flat[dir]; }
   S.collapsed['o:' + dir] = false;
   await loadList(dir); tab = 'files'; filter = ''; $('#q').value = '';
   document.body.classList.remove('noside');
@@ -245,6 +245,8 @@ async function afterFileChange() {
 
 async function handleCtx(res, path) {
   if (res === 'pin') togglePin(path);
+  else if (res === 'addFolderFlat') await addPlace(dirOf(path), true);
+  else if (res === 'addFolderDeep') await addPlace(dirOf(path), false);
   else if (res === 'forget') { S.recent = S.recent.filter(x => x.path !== path); renderSide(); save(); }
   else if (res === 'rename') {
     const name = await askName('Umbenennen', stem(path)); if (!name) return;
@@ -315,31 +317,34 @@ function section(el, key, title, o = {}) {
   h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); h.click(); } };
   h.onclick = () => { S.collapsed[key] = !collapsed; renderSide(); save(); };
   if (o.action) { const b = document.createElement('button'); b.className = 'secb'; b.title = o.action.title; b.setAttribute('aria-label', o.action.title); b.innerHTML = ICONS.plus; b.querySelector('svg').setAttribute('aria-hidden', 'true'); b.onclick = e => { e.stopPropagation(); o.action.fn(); }; h.append(b); }
-  if (o.ctx) h.oncontextmenu = e => { e.preventDefault(); N('ctx', {path: o.ctx.path, kind: o.ctx.kind, pinned: !!o.ctx.flag}).then(r => handleSectionCtx(r, o.ctx.path)); };
+  if (o.ctx) h.oncontextmenu = e => { e.preventDefault(); N('ctx', {path: o.ctx.path, kind: o.ctx.kind, pinned: !!o.ctx.flag, flat: !!S.flat?.[o.ctx.path]}).then(r => handleSectionCtx(r, o.ctx.path)); };
   el.append(h);
   const body = document.createElement('div'); body.className = 'secbody'; body.hidden = collapsed; el.append(body);
   return body;
+}
+function removePlace(path) {
+  S.orte = S.orte.filter(x => x !== path); delete S.flat[path]; delete S.collapsed['o:' + path];
+  S.order = (S.order || []).filter(k => k !== 'o:' + path);
+  if (S.notes === path) S.notes = null;
+  delete lists[path]; renderSide(); save();
 }
 async function handleSectionCtx(res, path) {
   if (res === 'addPlace') await addPlace(path);
   else if (res === 'addPlaceNotes') { await addPlace(path); S.notes = path; renderSide(); save(); }
   else if (res === 'setNotes') { S.notes = path; renderSide(); save(); }
   else if (res === 'unsetNotes') { S.notes = null; renderSide(); save(); }
-  else if (res === 'removePlace') { S.orte = S.orte.filter(x => x !== path); if (S.notes === path) S.notes = null; delete lists[path]; renderSide(); save(); }
+  else if (res === 'flatten' || res === 'deepen') { if (res === 'flatten') S.flat[path] = true; else delete S.flat[path]; await loadList(path); renderSide(); save(); }
+  else if (res === 'removePlace') removePlace(path);
 }
 
 function renderFiles(el) {
   // Bereiche der Seitenleiste; die Reihenfolge legt der Nutzer per Ziehen fest (S.order)
   const blocks = [];
-  if (fileDir && lists[fileDir]) blocks.push({key: 'dir', render: w => {
-    const b = section(w, 'd:' + fileDir, base(fileDir), {action: {title: 'Ordner als Ort merken', fn: () => addPlace(fileDir)}, ctx: {path: fileDir, kind: 'folder'}});
-    renderTreeFor(fileDir, b);
-  }});
   const recent = S.recent.filter(r => !isPinned(r.path)).slice(0, 12);
   if (recent.length) blocks.push({key: 'recent', cls: 'quick', render: w => { const b = section(w, 'recent', 'Zuletzt', {badge: S.collapsed.recent ? String(recent.length) : ''}); recent.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path)), true))); }});
   if (S.pins.length) blocks.push({key: 'pins', cls: 'quick', render: w => { const b = section(w, 'pins', 'Merkliste', {badge: S.collapsed.pins ? String(S.pins.length) : ''}); S.pins.forEach(r => b.append(fileRow(r, tilde(dirOf(r.path)), true))); }});
   for (const d of S.orte) blocks.push({key: 'o:' + d, render: w => {
-    const b = section(w, 'o:' + d, base(d), {badge: d === S.notes ? 'Neue Notizen' : '', action: {title: 'Neue Notiz in diesem Ordner', fn: () => newNote(d)}, ctx: {path: d, kind: 'place', flag: d === S.notes}});
+    const b = section(w, 'o:' + d, base(d), {badge: [d === S.notes ? 'Neue Notizen' : '', S.flat?.[d] ? 'ohne Unterordner' : ''].filter(Boolean).join(', '), action: {title: 'Neue Notiz in diesem Ordner', fn: () => newNote(d)}, ctx: {path: d, kind: 'place', flag: d === S.notes}});
     renderTreeFor(d, b);
   }});
   const order = S.order || [];
@@ -406,7 +411,10 @@ function renderTreeFor(dir, el) {
       if (open) { const kids = document.createElement('div'); kids.className = 'kids'; parent.append(kids); render(v, kids, prefix + k + '/'); }
     }
   })(t, el, '');
-  if (!(lists[dir] || []).length) el.innerHTML = '<div class="none">Keine Markdown-Dateien.</div>';
+  if (!(lists[dir] || []).length) {
+    el.innerHTML = '<div class="none">Keine Markdown-Dateien. Ordner nicht mehr vorhanden?</div>';
+    const b = document.createElement('button'); b.className = 'alt'; b.textContent = 'Aus der Seitenleiste entfernen'; b.onclick = () => removePlace(dir); el.append(b);
+  }
 }
 
 function renderSearch(el) {

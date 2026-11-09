@@ -303,7 +303,7 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
             case "trash":
                 replyHandler(confirmTrash(u), nil)
             default:
-                replyHandler(contextMenu(u, kind: b["kind"] as? String ?? "file", pinned: b["pinned"] as? Bool ?? false), nil)
+                replyHandler(contextMenu(u, kind: b["kind"] as? String ?? "file", pinned: b["pinned"] as? Bool ?? false, flat: b["flat"] as? Bool ?? false), nil)
             }
         default:
             replyHandler(nil, "unbekannt")
@@ -322,7 +322,7 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 
     /// Kontextmenü; gibt eine Aktion für die Oberfläche zurück (pin, rename, forget, trashed, removePlace, changeNotes) oder nil.
-    func contextMenu(_ u: URL, kind: String, pinned: Bool) -> String? {
+    func contextMenu(_ u: URL, kind: String, pinned: Bool, flat: Bool = false) -> String? {
         var keep: [Act] = []
         var chosen: String?
         let menu = NSMenu()
@@ -342,6 +342,9 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
             for e in editors where installed(e.id) != nil { item("Öffnen mit \(e.name)") { open(u, with: e.id) } }
             item("Mit Standardprogramm öffnen") { NSWorkspace.shared.open(u) }
             menu.addItem(.separator())
+            item("Ordner als Ort hinzufügen: nur dieser Ordner") { chosen = "addFolderFlat" }
+            item("Ordner als Ort hinzufügen: mit Unterordnern") { chosen = "addFolderDeep" }
+            menu.addItem(.separator())
             item("Aus „Zuletzt“ entfernen") { chosen = "forget" }
             item("In den Papierkorb legen …") { chosen = "trash" }
         } else {
@@ -351,7 +354,9 @@ final class Bridge: NSObject, WKScriptMessageHandlerWithReply {
                 item("Als Ort für neue Notizen merken") { chosen = "addPlaceNotes" }
             } else {
                 item(pinned ? "Nicht mehr für neue Notizen verwenden" : "Für neue Notizen verwenden") { chosen = pinned ? "unsetNotes" : "setNotes" }
-                item("Aus Orte entfernen") { chosen = "removePlace" }
+                item(flat ? "Unterordner einbeziehen" : "Nur diesen Ordner zeigen (ohne Unterordner)") { chosen = flat ? "deepen" : "flatten" }
+                menu.addItem(.separator())
+                item("Aus der Seitenleiste entfernen (Dateien bleiben)") { chosen = "removePlace" }
             }
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
