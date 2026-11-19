@@ -1,0 +1,13 @@
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+import { parseFeed, cluster } from '../scripts/fetch-feeds.mjs';
+const items = parseFeed(readFileSync(new URL('./fixture.xml', import.meta.url), 'utf8'));
+assert.equal(items.length, 3);
+assert.equal(items[0].title, 'Landtag beschließt neuen Haushalt für Sachsen');
+assert.equal(items[0].summary, 'Der Landtag hat den Haushalt verabschiedet.');
+const feedA = { id: 'a', name: 'A', topics: ['politik'], scope: 'sachsen', tier: 3 };
+const feedB = { id: 'b', name: 'B', topics: [], scope: 'sachsen', tier: 2 };
+const stories = cluster([{ ...items[0], feed: feedA }, { ...items[1], feed: feedB }, { ...items[2], feed: feedB }]);
+assert.equal(stories.length, 2);
+assert.equal(stories.find(s => s.sources.length === 2).sources.length, 2);
+console.log('ok');

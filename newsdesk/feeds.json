@@ -1,0 +1,19 @@
+{
+  "_hinweis": "verified=false heißt: URL aus Erinnerung/Suche, noch nicht live geprüft. Prüfen mit: node scripts/fetch-feeds.mjs --check",
+  "feeds": [
+    {"id":"tagesschau","name":"tagesschau","url":"https://www.tagesschau.de/index~rss2.xml","scope":"national","topics":["politik"],"tier":3,"verified":false},
+    {"id":"tagesschau-wirtschaft","name":"tagesschau Wirtschaft","url":"https://www.tagesschau.de/wirtschaft/index~rss2.xml","scope":"national","topics":["wirtschaft"],"tier":3,"verified":false},
+    {"id":"dlf","name":"Deutschlandfunk","url":"https://www.deutschlandfunk.de/nachrichten-100.rss","scope":"national","topics":["politik"],"tier":3,"verified":false},
+    {"id":"zdf","name":"ZDFheute","url":"https://www.zdf.de/rss/zdf/nachrichten","scope":"national","topics":["politik"],"tier":3,"verified":false},
+    {"id":"zeit","name":"ZEIT ONLINE","url":"https://newsfeed.zeit.de/index","scope":"national","topics":["politik"],"tier":2,"verified":false},
+    {"id":"spiegel","name":"SPIEGEL","url":"https://www.spiegel.de/schlagzeilen/index.rss","scope":"national","topics":["politik"],"tier":2,"verified":false},
+    {"id":"sz","name":"Süddeutsche","url":"https://rss.sueddeutsche.de/rss/Topthemen","scope":"national","topics":["politik"],"tier":2,"verified":false},
+    {"id":"mdr","name":"MDR aktuell","url":"https://www.mdr.de/nachrichten/index-rss.xml","scope":"sachsen","topics":["politik"],"tier":3,"verified":true},
+    {"id":"mdr-sachsen","name":"MDR Sachsen","url":"https://www.mdr.de/nachrichten/sachsen/index-rss.xml","scope":"sachsen","topics":[],"tier":3,"verified":false},
+    {"id":"mdr-leipzig","name":"MDR Leipzig","url":"https://www.mdr.de/nachrichten/sachsen/leipzig/index-rss.xml","scope":"leipzig","topics":[],"tier":3,"verified":false},
+    {"id":"lvz","name":"LVZ Leipzig","url":"https://www.lvz.de/arc/outboundfeeds/rss/tags_slug/leipzig/","scope":"leipzig","topics":[],"tier":2,"verified":true},
+    {"id":"heise","name":"heise online","url":"https://www.heise.de/rss/heise-atom.xml","scope":"national","topics":["tech"],"tier":2,"verified":false},
+    {"id":"spektrum","name":"Spektrum.de","url":"https://www.spektrum.de/alias/rss/spektrum-de-rss-feed/996406","scope":"national","topics":["wissenschaft"],"tier":2,"verified":false},
+    {"id":"kicker","name":"kicker","url":"https://rss.kicker.de/news/aktuell","scope":"national","topics":["sport"],"tier":2,"verified":false}
+  ]
+}

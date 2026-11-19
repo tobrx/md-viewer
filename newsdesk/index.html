@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Newsdesk</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#1f3a5f">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1b1d21;--mute:#6b7078;--line:#e4e2db;--acc:#1f3a5f;--acc2:#e8eef6;--warn:#fff4d6}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--card:#1d2026;--ink:#ecebe6;--mute:#9aa0a8;--line:#2b2f37;--acc:#8fb4e8;--acc2:#222b38;--warn:#3a3220}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 0}
+.top{display:flex;align-items:center;justify-content:space-between;max-width:760px;margin:0 auto}
+h1{font-size:19px;margin:0;letter-spacing:-.2px}
+.sub{color:var(--mute);font-size:12px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.icon{padding:8px;border-radius:8px}.icon:hover{background:var(--acc2)}
+nav{display:flex;gap:4px;overflow-x:auto;max-width:760px;margin:6px auto 0;scrollbar-width:none}
+nav button{padding:8px 12px;border-bottom:2px solid transparent;white-space:nowrap;color:var(--mute);font-weight:500}
+nav button[aria-selected=true]{color:var(--acc);border-color:var(--acc)}
+main{max-width:760px;margin:0 auto;padding:12px 16px 60px}
+.banner{background:var(--warn);border-radius:10px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.card.lead{padding:16px}.card.lead h3{font-size:19px}
+.card.read{opacity:.55}
+h3{font-size:16px;margin:0 0 4px;line-height:1.3}
+h3 a{color:inherit;text-decoration:none}
+p{margin:4px 0 8px;color:var(--mute);font-size:14px}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--mute)}
+.chip{background:var(--acc2);color:var(--acc);border-radius:999px;padding:2px 9px;font-size:12px;text-decoration:none}
+.chip.src{background:none;border:1px solid var(--line);color:var(--mute)}
+.why{font-size:11px;color:var(--mute);margin-left:auto}
+.empty{color:var(--mute);text-align:center;padding:40px 0}
+dialog{border:0;border-radius:16px;padding:18px;width:min(520px,92vw);background:var(--card);color:var(--ink)}
+dialog::backdrop{background:#0006}
+.tg{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
+.tg label{border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:14px}
+.tg input{display:none}.tg label:has(input:checked){background:var(--acc);color:var(--bg);border-color:var(--acc)}
+input[type=text]{width:100%;font:inherit;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.btn{padding:8px 16px;border-radius:10px;background:var(--acc);color:var(--bg)}
+.btn.ghost{background:none;color:var(--mute)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div><h1>Newsdesk</h1><div class="sub" id="stamp"></div></div>
+    <div><button class="icon" id="reload" title="Neu laden" aria-label="Neu laden">↻</button><button class="icon" id="cog" title="Einstellungen" aria-label="Einstellungen">⚙︎</button></div>
+  </div>
+  <nav id="tabs" role="tablist"></nav>
+</header>
+<main id="view"></main>
+
+<dialog id="dlg">
+  <h3>Einstellungen</h3>
+  <h2 style="margin-top:12px">Meine Themen</h2>
+  <div class="tg" id="topicBox"></div>
+  <h2 style="margin-top:0">Ich folge (Stichwörter, Komma-getrennt)</h2>
+  <input type="text" id="follow" placeholder="z. B. RB Leipzig, Lok Leipzig, Quantencomputer">
+  <p>Treffer in Titel oder Teaser landen im Tab „Ich folge“. Alles bleibt lokal in deinem Browser.</p>
+  <div class="row"><button class="btn ghost" id="resetRead">Gelesen zurücksetzen</button><button class="btn" id="save">Fertig</button></div>
+</dialog>
+
+<script>
+const TOPICS={politik:'Politik',wirtschaft:'Wirtschaft',tech:'Tech',wissenschaft:'Wissenschaft',gesundheit:'Gesundheit',sport:'Sport',kultur:'Kultur'};
+const TABS=[['heute','Heute'],['region','Sachsen & Leipzig'],['themen','Meine Themen'],['folge','Ich folge']];
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem('nd.'+k))??d}catch{return d}},set(k,v){try{localStorage.setItem('nd.'+k,JSON.stringify(v))}catch{}}};
+let state={tab:store.get('tab','heute'),topics:store.get('topics',['wirtschaft','tech']),follow:store.get('follow',['RB Leipzig']),read:new Set(store.get('read',[])),data:null};
+
+async function load(){
+  let d,demo=false;
+  for(const u of ['data/news.json','data/sample.json']){
+    try{const r=await fetch(u,{cache:'no-cache'});if(r.ok){d=await r.json();demo=!!d.demo;break}}catch{}
+  }
+  d=d||{items:[]};
+  const gen=d.generated?new Date(d.generated):new Date();
+  d.items.forEach(i=>{i.ts=i.published?new Date(i.published):new Date(Date.now()-(i.ageMin||0)*6e4)});
+  state.data={items:d.items,demo,gen};render();
+}
+
+// Transparentes Ranking: kein Blackbox-Algorithmus. Punkte = Quellenzahl (Mehrfach-Berichterstattung)
+// + Quellenqualität + Frische. "Warum oben?" zeigt die Zutaten.
+function score(i){
+  const h=(Date.now()-i.ts)/36e5, fresh=Math.max(0,12-h/2); // 12 Pkt. frisch → 0 nach 24 h
+  const multi=(i.sources.length-1)*8, tier=(i.tier||1)*2;
+  return{total:multi+tier+fresh,multi:i.sources.length};
+}
+const ago=ts=>{const m=Math.round((Date.now()-ts)/6e4);return m<60?`vor ${m} Min.`:m<1440?`vor ${Math.round(m/60)} Std.`:`vor ${Math.round(m/1440)} Tg.`};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const matchFollow=i=>{const t=(i.title+' '+i.summary).toLowerCase();return state.follow.filter(k=>k&&t.includes(k.toLowerCase()))};
+
+function card(i,lead){
+  const sc=score(i),f=matchFollow(i),first=i.sources[0];
+  const why=sc.multi>1?`${sc.multi} Quellen berichten`:'';
+  return`<article class="card ${lead?'lead':''} ${state.read.has(i.id)?'read':''}" data-id="${i.id}">
+    <h3><a href="${esc(first.url)}" target="_blank" rel="noopener" data-read="${i.id}">${esc(i.title)}</a></h3>
+    ${i.summary?`<p>${esc(i.summary)}</p>`:''}
+    <div class="meta">
+      ${i.sources.map(s=>`<a class="chip src" href="${esc(s.url)}" target="_blank" rel="noopener" data-read="${i.id}">${esc(s.name)}</a>`).join('')}
+      <span>${ago(i.ts)}</span>
+      ${f.map(k=>`<span class="chip">★ ${esc(k)}</span>`).join('')}
+      <span class="why" title="Ranking: Quellenzahl + Quellenqualität + Frische">${why}</span>
+    </div></article>`;
+}
+const list=(items,leadN=0)=>items.length?items.map((i,n)=>card(i,n<leadN)).join(''):'<div class="empty">Nichts Neues. Passt.</div>';
+const byScore=a=>a.sort((x,y)=>score(y).total-score(x).total);
+
+function render(){
+  if(!state.data)return;
+  const all=state.data.items,nat=all.filter(i=>i.scope==='national'),reg=all.filter(i=>i.scope!=='national');
+  $('#tabs').innerHTML=TABS.map(([k,l])=>`<button role="tab" aria-selected="${state.tab===k}" data-tab="${k}">${l}</button>`).join('');
+  $('#stamp').textContent='Stand '+state.data.gen.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' · '+all.length+' Geschichten';
+  let h=state.data.demo?'<div class="banner"><b>Demo-Daten.</b> Noch keine echten Feeds geladen. Mit <code>node scripts/fetch-feeds.mjs</code> entsteht <code>data/news.json</code>.</div>':'';
+  if(state.tab==='heute'){
+    const top=byScore(nat.slice());
+    h+=`<h2>Das sollte man wissen</h2>${list(top.slice(0,4),1)}<h2>Weitere Meldungen</h2>${list(top.slice(4))}`;
+  }else if(state.tab==='region'){
+    const r=byScore(reg.slice()),le=r.filter(i=>i.scope==='leipzig'),sa=r.filter(i=>i.scope==='sachsen');
+    h+=`<h2>Leipzig</h2>${list(le)}<h2>Sachsen</h2>${list(sa)}`;
+  }else if(state.tab==='themen'){
+    const sel=state.topics;
+    h+=sel.length?sel.map(t=>`<h2>${TOPICS[t]}</h2>${list(byScore(all.filter(i=>i.topics.includes(t))).slice(0,5))}`).join(''):'<div class="empty">Wähle oben rechts (⚙︎) deine Themen.</div>';
+  }else{
+    const hits=all.filter(i=>matchFollow(i).length);
+    h+=state.follow.length?list(byScore(hits)):'<div class="empty">Füge Stichwörter hinzu (⚙︎), z. B. dein Team.</div>';
+  }
+  $('#view').innerHTML=h;
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab]');if(t){state.tab=t.dataset.tab;store.set('tab',state.tab);render();scrollTo(0,0)}
+  const r=e.target.closest('[data-read]');if(r){state.read.add(r.dataset.read);store.set('read',[...state.read]);setTimeout(render,200)}
+});
+$('#reload').onclick=load;
+$('#cog').onclick=()=>{
+  $('#topicBox').innerHTML=Object.entries(TOPICS).map(([k,l])=>`<label><input type="checkbox" value="${k}" ${state.topics.includes(k)?'checked':''}>${l}</label>`).join('');
+  $('#follow').value=state.follow.join(', ');$('#dlg').showModal();
+};
+$('#save').onclick=()=>{
+  state.topics=[...document.querySelectorAll('#topicBox input:checked')].map(i=>i.value);
+  state.follow=$('#follow').value.split(',').map(s=>s.trim()).filter(Boolean);
+  store.set('topics',state.topics);store.set('follow',state.follow);$('#dlg').close();render();
+};
+$('#resetRead').onclick=()=>{state.read.clear();store.set('read',[]);render()};
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+load();
+</script>
+</body>
+</html>

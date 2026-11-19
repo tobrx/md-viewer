@@ -1,0 +1,5 @@
+<rss><channel>
+<item><title>Landtag beschlie&#223;t neuen Haushalt f&#252;r Sachsen</title><link>https://a.example/1</link><pubDate>Wed, 19 Nov 2026 07:00:00 +0100</pubDate><description><![CDATA[<p>Der Landtag hat den <b>Haushalt</b> verabschiedet.</p>]]></description></item>
+<item><title>Haushalt f&#252;r Sachsen: Landtag beschlie&#223;t Etat</title><link>https://b.example/2</link><pubDate>Wed, 19 Nov 2026 08:00:00 +0100</pubDate><description>Kurzmeldung</description></item>
+<item><title>Wetter am Wochenende</title><link>https://b.example/3</link><pubDate>Wed, 19 Nov 2026 08:10:00 +0100</pubDate></item>
+</channel></rss>
